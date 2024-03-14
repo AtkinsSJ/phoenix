@@ -34,6 +34,7 @@ import module_grep from './grep.js'
 import module_head from './head.js'
 import module_help from './help.js'
 import module_jq from './jq.js'
+import module_json_test from './json-test.js'
 import module_login from './login.js'
 import module_ls from './ls.js'
 import module_man from './man.js'
@@ -74,6 +75,7 @@ export default {
     "head": module_head,
     "help": module_help,
     "jq": module_jq,
+    "json-test": module_json_test,
     "login": module_login,
     "ls": module_ls,
     "man": module_man,
