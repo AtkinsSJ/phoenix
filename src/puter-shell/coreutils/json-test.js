@@ -31,22 +31,6 @@ import {
 const BS  = String.fromCharCode(8);
 const FF  = String.fromCharCode(0x0C);
 
-class TokenTypeParserImpl {
-    static meta = {
-        inputs: 'node',
-        outputs: 'node'
-    }
-    constructor ({ value }) {
-        this.value = value;
-    }
-    parse (lexer) {
-        let { done, value } = lexer.next();
-        if ( done ) return;
-        if (value.$ !== this.value) return;
-        return value;
-    }
-}
-
 // DRY: Copied from the library WhitespaceParserImpl, except we include \n
 class WhitespaceParserImpl {
     static meta = {
@@ -246,6 +230,24 @@ class StringParserImpl {
     }
 }
 
+class SymbolParserImpl {
+    static meta = {
+        inputs: 'bytes',
+        outputs: 'node'
+    }
+    constructor ({ value }) {
+        console.log("MAKING SYMBOL THING", value);
+        this.value = value;
+    }
+    parse (lexer) {
+        console.log("Lexer", lexer);
+        let { done, value } = lexer.next();
+        if ( done ) return;
+        if (value.$ !== this.value) return;
+        return value;
+    }
+}
+
 class JsonPStratumImpl {
     static meta = {
         inputs: 'node',
@@ -270,7 +272,7 @@ function parseJSON(input) {
 
     const parserRegistry = StrataParseFacade.getDefaultParserRegistry();
     parserRegistry.register('whitespace', WhitespaceParserImpl);
-    parserRegistry.register('token', TokenTypeParserImpl);
+    parserRegistry.register('symbol', SymbolParserImpl);
 
     const parserBuilder = new ParserBuilder({ parserFactory, parserRegistry });
 
@@ -297,26 +299,22 @@ function parseJSON(input) {
     sp.add(new ContextSwitchingPStratumImpl(({
         entry: 'element',
         contexts: {
-            element: [
-                parserFactory.create(WhitespaceParserImpl),
-                {
-                    parser: parserBuilder.def(a => a.none()),
-                    transition: { to: 'value' },
-                },
-            ],
-            elements: [
-                parserBuilder.def(a => {
-                    a.sequence(
-                        // TODO: parse `element`
-                        a.repeat(
-                            a.sequence(
-                                parserBuilder.def(a => a.literal(',').assign({ $: 'comma' })),
-                                // TODO: parse `element`
-                            )
+            element: [parserBuilder.def(a => a.sequence(
+                a.choice(a.whitespace(), a.none()),
+                a.symbol('value'),
+                a.choice(a.whitespace(), a.none()),
+            ))],
+            elements: [parserBuilder.def(a => {
+                a.sequence(
+                    a.symbol('element'),
+                    a.repeat(
+                        a.sequence(
+                            parserBuilder.def(a => a.literal(',').assign({ $: 'comma' })),
+                            a.symbol('element'),
                         )
                     )
-                }),
-            ],
+                )
+            })],
             value: [
                 {
                     parser: parserBuilder.def(a => a.literal('{').assign({ $: 'open-brace' })),
@@ -390,7 +388,7 @@ export default {
             const json = parseJSON(input);
             await out.write(`${JSON.stringify(json, null, 2)}\n`);
         } catch(e) {
-            await err.write(`Failed to parse JSON: ${e}\n`);
+            await err.write(`Failed to parse JSON: ${e.stack}\n`);
         }
     }
 };
