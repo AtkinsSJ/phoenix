@@ -17,67 +17,44 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import path_ from "path-browserify";
-import child_process from "node:child_process";
-import stream from "node:stream";
 import { signals } from '../../ansi-shell/signals.js';
 import { Exit } from '../coreutils/coreutil_lib/exit.js';
+import pty from 'node-pty';
 
 function makeCommand(id, executablePath) {
     return {
         name: id,
         path: executablePath,
         async execute(ctx) {
-            const child = child_process.spawn(executablePath, ctx.locals.args, {
-                stdio: ['pipe', 'pipe', 'pipe'],
+            const child = pty.spawn(executablePath, ctx.locals.args, {
+                name: 'xterm-color',
+                rows: ctx.env.ROWS,
+                cols: ctx.env.COLS,
                 cwd: ctx.vars.pwd,
+                env: ctx.env
             });
-
-            const in_ = new stream.PassThrough();
-            const out = new stream.PassThrough();
-            const err = new stream.PassThrough();
-
-            in_.on('data', (chunk) => {
-                child.stdin.write(chunk);
-            });
-            out.on('data', (chunk) => {
+            child.onData(chunk => {
                 ctx.externs.out.write(chunk);
-            });
-            err.on('data', (chunk) => {
-                ctx.externs.err.write(chunk);
-            });
-
-            const fn_err = label => err => {
-                console.log(`ERR(${label})`, err);
-            };
-            in_.on('error', fn_err('in_'));
-            out.on('error', fn_err('out'));
-            err.on('error', fn_err('err'));
-            child.stdin.on('error', fn_err('stdin'));
-            child.stdout.on('error', fn_err('stdout'));
-            child.stderr.on('error', fn_err('stderr'));
-
-            child.stdout.pipe(out);
-            child.stderr.pipe(err);
-
-            child.on('error', (err) => {
-                console.error(`Error running path executable '${executablePath}':`, err);
             });
 
             const sigint_promise = new Promise((resolve, reject) => {
                 ctx.externs.sig.on((signal) => {
                     if ( signal === signals.SIGINT ) {
+                        child.kill('SIGINT'); // FIXME: Docs say this will throw when used on Windows
                         reject(new Exit(130));
                     }
                 });
             });
 
             const exit_promise = new Promise((resolve, reject) => {
-                child.on('exit', (code) => {
-                    ctx.externs.out.write(`Exited with code ${code}\n`);
-                    if (code === 0) {
-                        resolve({ done: true });
-                    } else {
+                child.onExit(({code, signal}) => {
+                    ctx.externs.out.write(`Exited with code ${code || 0} and signal ${signal || 0}\n`);
+                    if ( signal ) {
+                        reject(new Exit(1));
+                    } else if ( code ) {
                         reject(new Exit(code));
+                    } else {
+                        resolve({ done: true });
                     }
                 });
             });
@@ -90,7 +67,7 @@ function makeCommand(id, executablePath) {
                     exit_promise, sigint_promise, ctx.externs.in_.read(),
                 ]));
                 if ( data ) {
-                    in_.write(data);
+                    child.write(data);
                     if ( ! done ) setTimeout(next_data, 0);
                 }
             }
