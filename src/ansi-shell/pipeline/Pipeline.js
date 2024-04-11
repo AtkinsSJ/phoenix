@@ -288,8 +288,11 @@ export class PreparedCommand {
         //        but for some reason Node crashes first, unless we set this handler,
         //        EVEN IF IT DOES NOTHING. I also can't find a place to safely remove it,
         //        so apologies if it makes debugging promises harder.
-        const rejectionCatcher = (reason, promise) => {};
-        process.on('unhandledRejection', rejectionCatcher);
+        if (typeof process !== 'undefined') {
+            const rejectionCatcher = (reason, promise) => {
+            };
+            process.on('unhandledRejection', rejectionCatcher);
+        }
 
         let exit_code = 0;
         try {

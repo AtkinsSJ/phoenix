@@ -113,7 +113,7 @@ export class ANSIShell extends EventTarget {
     }
 
     async doPromptIteration() {
-        if ( globalThis.force_eot ) {
+        if ( globalThis.force_eot && typeof process !== 'undefined' ) {
             process.exit(0);
         }
         const { readline } = this.ctx.externs;

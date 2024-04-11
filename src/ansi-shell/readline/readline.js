@@ -74,7 +74,7 @@ const ReadlineProcessorBuilder = builder => builder
             externs.out.write('^C\n');
             // Exit if input line is empty
             // FIXME: Check for 'process' is so we only do this on Node. How should we handle exiting in Puter terminal?
-            if ( process && ctx.vars.result.length === 0 ) {
+            if ( typeof process !== 'undefined' && ctx.vars.result.length === 0 ) {
                 process.exit(1);
                 return;
             }
